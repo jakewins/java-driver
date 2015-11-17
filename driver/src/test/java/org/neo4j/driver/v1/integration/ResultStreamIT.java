@@ -109,4 +109,21 @@ public class ResultStreamIT
         // Then
         assertTrue( rs.value( "n" ).value( "age" ).isNull() );
     }
+
+    @Test
+    public void shouldHandleBigResultStream() throws Throwable
+    {
+        // Given
+        long numRecords = 10_000_000;
+        Result res = session.run( "UNWIND range(1,{r}) AS i RETURN 'just a string to make this take up extra space in RAM'", parameters( "r", numRecords ) );
+
+        // When
+        while(res.next())
+        {
+            numRecords--;
+        }
+
+        // Then we shouldn't have ran out of RAM, and we should have seen as many records as we asked for
+        assertEquals( 0, numRecords );
+    }
 }

@@ -18,7 +18,6 @@
  */
 package org.neo4j.driver.internal.util;
 
-public interface Consumer<T>
+public interface Consumer<T> extends ThrowingConsumer<T, RuntimeException>
 {
-    void accept(T t);
 }

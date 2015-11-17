@@ -39,7 +39,7 @@ public class SocketProtocolV1 implements SocketProtocol
         ChunkedOutput output = new ChunkedOutput( channel );
         ChunkedInput input = new ChunkedInput( channel );
 
-        this.writer = new PackStreamMessageFormatV1.Writer( output, output.messageBoundaryHook() );
+        this.writer = new PackStreamMessageFormatV1.Writer( output );
         this.reader = new PackStreamMessageFormatV1.Reader( input, input.messageBoundaryHook() );
     }
 

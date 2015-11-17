@@ -124,6 +124,24 @@ public class ChunkedOutput implements PackOutput
         return this;
     }
 
+    @Override
+    public void writeMessageBoundary() throws IOException
+    {
+        closeChunkIfOpen();
+
+        // Ensure there's space to write the message boundary
+        if ( buffer.remaining() < CHUNK_HEADER_SIZE )
+        {
+            flush();
+        }
+
+        // Write message boundary
+        buffer.putShort( MESSAGE_BOUNDARY );
+
+        // Mark us as not currently in a chunk
+        chunkOpen = false;
+    }
+
     private void closeChunkIfOpen()
     {
         if( chunkOpen )
@@ -151,39 +169,4 @@ public class ChunkedOutput implements PackOutput
 
         return this;
     }
-
-    private Runnable onMessageComplete = new Runnable()
-    {
-        @Override
-        public void run()
-        {
-            try
-            {
-                closeChunkIfOpen();
-
-                // Ensure there's space to write the message boundary
-                if ( buffer.remaining() < CHUNK_HEADER_SIZE )
-                {
-                    flush();
-                }
-
-                // Write message boundary
-                buffer.putShort( MESSAGE_BOUNDARY );
-
-                // Mark us as not currently in a chunk
-                chunkOpen = false;
-            }
-            catch ( IOException e )
-            {
-                throw new ClientException( "Error while sending message complete ending '00 00'.", e );
-            }
-
-        }
-    };
-
-    public Runnable messageBoundaryHook()
-    {
-        return onMessageComplete;
-    }
-
 }

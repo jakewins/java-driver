@@ -31,14 +31,6 @@ import org.neo4j.driver.v1.exceptions.ClientException;
 public interface Connector
 {
     /**
-     * Determine whether this connector can support the sessionURL specified.
-     *
-     * @param scheme a URL scheme
-     * @return true if this scheme is supported, false otherwise
-     */
-    boolean supports( String scheme );
-
-    /**
      * Establish a connection to a remote listener and attach to the session identified.
      *
      * @param sessionURL a URL identifying a remote session

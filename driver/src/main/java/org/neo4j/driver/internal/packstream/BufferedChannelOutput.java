@@ -117,6 +117,12 @@ public class BufferedChannelOutput implements PackOutput
         return this;
     }
 
+    @Override
+    public void writeMessageBoundary()
+    {
+        // no-op
+    }
+
     private void ensure( int size ) throws IOException
     {
         if ( buffer.remaining() < size )

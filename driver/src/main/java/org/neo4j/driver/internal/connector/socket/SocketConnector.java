@@ -30,16 +30,13 @@ import org.neo4j.driver.v1.exceptions.ClientException;
 
 public class SocketConnector implements Connector
 {
-    @Override
-    public boolean supports( String scheme )
-    {
-        return scheme.equals( Config.SCHEME );
-    }
+    public static final String SCHEME = "bolt";
+    public static final int DEFAULT_PORT = 7687;
 
     @Override
     public Connection connect( URI sessionURI, Config config ) throws ClientException
     {
-        int port = sessionURI.getPort() == -1 ? Config.DEFAULT_PORT : sessionURI.getPort();
+        int port = sessionURI.getPort() == -1 ? DEFAULT_PORT : sessionURI.getPort();
         SocketConnection conn = new SocketConnection( sessionURI.getHost(), port, config );
         conn.init( "bolt-java-driver/" + Version.driverVersion() );
         return conn;
@@ -48,6 +45,6 @@ public class SocketConnector implements Connector
     @Override
     public Collection<String> supportedSchemes()
     {
-        return Collections.singletonList( Config.SCHEME );
+        return Collections.singletonList( SCHEME );
     }
 }

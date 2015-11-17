@@ -34,7 +34,6 @@ import org.neo4j.driver.internal.InternalPath;
 import org.neo4j.driver.internal.InternalRelationship;
 import org.neo4j.driver.internal.connector.socket.ChunkedInput;
 import org.neo4j.driver.internal.connector.socket.ChunkedOutput;
-import org.neo4j.driver.internal.packstream.BufferedChannelOutput;
 import org.neo4j.driver.internal.packstream.PackInput;
 import org.neo4j.driver.internal.packstream.PackOutput;
 import org.neo4j.driver.internal.packstream.PackStream;
@@ -83,8 +82,7 @@ public class PackStreamMessageFormatV1 implements MessageFormat
     @Override
     public MessageFormat.Writer newWriter( WritableByteChannel ch )
     {
-        ChunkedOutput output = new ChunkedOutput( ch );
-        return new Writer( output, output.messageBoundaryHook() );
+        return new Writer( new ChunkedOutput( ch ) );
     }
 
     @Override
@@ -103,21 +101,15 @@ public class PackStreamMessageFormatV1 implements MessageFormat
     public static class Writer implements MessageFormat.Writer, MessageHandler
     {
         private final PackStream.Packer packer;
-        private final Runnable onMessageComplete;
-
-        public Writer()
-        {
-            this( new BufferedChannelOutput( 8192 ), new NoOpRunnable() );
-        }
+        private final PackOutput output;
 
         /**
          * @param output interface to write messages to
-         * @param onMessageComplete invoked for each message, after it's done writing to the output
          */
-        public Writer( PackOutput output, Runnable onMessageComplete )
+        public Writer( PackOutput output )
         {
-            this.onMessageComplete = onMessageComplete;
-            packer = new PackStream.Packer( output );
+            this.output = output;
+            packer = new PackStream.Packer( this.output );
         }
 
         @Override
@@ -125,7 +117,7 @@ public class PackStreamMessageFormatV1 implements MessageFormat
         {
             packer.packStructHeader( 1, MSG_INIT );
             packer.pack( clientNameAndVersion );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
@@ -134,28 +126,28 @@ public class PackStreamMessageFormatV1 implements MessageFormat
             packer.packStructHeader( 2, MSG_RUN );
             packer.pack( statement );
             packRawMap( parameters );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
         public void handlePullAllMessage() throws IOException
         {
             packer.packStructHeader( 0, MSG_PULL_ALL );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
         public void handleDiscardAllMessage() throws IOException
         {
             packer.packStructHeader( 0, MSG_DISCARD_ALL );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
         public void handleAckFailureMessage() throws IOException
         {
             packer.packStructHeader( 0, MSG_ACK_FAILURE );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
@@ -163,7 +155,7 @@ public class PackStreamMessageFormatV1 implements MessageFormat
         {
             packer.packStructHeader( 1, MSG_SUCCESS );
             packRawMap( meta );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
@@ -175,7 +167,7 @@ public class PackStreamMessageFormatV1 implements MessageFormat
             {
                 packValue( field );
             }
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
@@ -189,14 +181,14 @@ public class PackStreamMessageFormatV1 implements MessageFormat
 
             packer.pack( "message" );
             packValue( value( message ) );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         @Override
         public void handleIgnoredMessage() throws IOException
         {
             packer.packStructHeader( 0, MSG_IGNORED );
-            onMessageComplete.run();
+            output.writeMessageBoundary();
         }
 
         private void packRawMap( Map<String,Value> map ) throws IOException

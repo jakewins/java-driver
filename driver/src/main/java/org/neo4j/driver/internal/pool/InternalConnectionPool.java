@@ -161,7 +161,6 @@ public class InternalConnectionPool implements ConnectionPool
 
     private ThreadCachingPool<PooledConnection> newPool( final URI uri )
     {
-
         return new ThreadCachingPool<>( config.connectionPoolSize(), new Allocator<PooledConnection>()
         {
             @Override

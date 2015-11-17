@@ -42,9 +42,6 @@ import static org.neo4j.driver.v1.Config.TlsAuthenticationConfig.usingKnownCerts
 @Immutable
 public class Config
 {
-    public static final String SCHEME = "bolt";
-    public static final int DEFAULT_PORT = 7687;
-
     /** User defined logging */
     private final Logging logging;
 
@@ -58,7 +55,7 @@ public class Config
     private final boolean isTlsEnabled;
 
     /* Defines how to authenticate a server in TLS connections */
-    private TlsAuthenticationConfig tlsAuthConfig;
+    private final TlsAuthenticationConfig tlsAuthConfig;
 
     private Config( ConfigBuilder builder )
     {

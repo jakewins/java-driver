@@ -45,4 +45,7 @@ public interface PackOutput
 
     /** Produce an 8-byte IEEE 754 "double format" floating-point number */
     PackOutput writeDouble( double value ) throws IOException;
+
+    /** Optional, inform the message framing layer that we've just written a complete message */
+    void writeMessageBoundary() throws IOException;
 }
