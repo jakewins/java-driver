@@ -19,34 +19,34 @@ import org.neo4j.driver.internal.util.ThrowingConsumer;
  */
 public class BoltV1IncrementalDechunker
 {
-    private static final int mainBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.mainSize", 1024 * 4 );
-    private static final int expandBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.expandSize", 1024 * 2 );
+    public static final int defaultMainBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.mainSize", 1024 * 4 );
+    private static final int defaultExpansionBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.expandSize", 1024 * 2 );
+
+    private final int expansionBufferSize;
 
     private final ThrowingConsumer<PackInput,IOException> onMessage;
     private final ByteBuffer header = ByteBuffer.allocateDirect( 2 );
 
-    /** Exposes {@link #messageBuffer} and {@link #expansionBuffers} as a uniform {@link PackInput} */
+    /** Exposes {@link #dechunkedBuffers} as a uniform {@link PackInput} */
     private final DechunkedBufferView bufferView;
 
     /** This is the buffer we write the dechunked binary message data to.. as long as it fits in here */
-    private final ByteBuffer messageBuffer;
+    private final ByteBuffer mainBuffer;
 
-    /** This is a pointer to whatever buffer we're currently reading into, normally {@link #messageBuffer}, but could also be head({@link #expansionBuffers}) */
+    /** This is a pointer to whatever buffer we're currently reading into, normally {@link #mainBuffer}, but could also be head({@link #dechunkedBuffers}) */
     private ByteBuffer currentBuffer;
 
     /**
-     * So, here's the deal. The {@link #messageBuffer} above is meant to be, for 99% of messages, the allocate-at-startup go-to buffer for deserializing inbound
+     * So, here's the deal. The {@link #mainBuffer} above is meant to be, for 99% of messages, the allocate-at-startup go-to buffer for deserializing inbound
      * messages. We read the dechunked binary data into that buffer. However, there is no boundary for the message size - the user may fetch a very large
      * string at some point, and we'd prefer to not use up a bunch of RAM "just in case".
      *
-     * At the same time, we'd also prefer to not use a complicated pooling solution like Netty had to do. So, what do we do? Well, the list below contains
-     * temporary "expansion" buffers, which we allocate dynamically when we've filled {@link #messageBuffer}. Once the unusually large message is deserialized,
-     * these expansion buffers are released, and GC cleans them up.
-     *
-     * This design does create some GC churn - but it should be minimal, and it's super easy to make the size of the main buffer configurable such that
-     * applications with lots of large messages can have a large fixed messageBuffer.
+     * At the same time, we'd also prefer to not use a complicated pooling solution like Netty had to do. So, what to do? Well, we allow dynamic allocation
+     * of on-heap buffers. All the buffers (including {@link #mainBuffer} go in this list, which is then used by {@link DechunkedBufferView} to expose the
+     * dechunked message. For most messages, the {@link #mainBuffer} will be the only buffer in the list - but if the message is too large to fit, we append
+     * dynamically allocated buffers behind it in this list.
      */
-    private final LinkedList<ByteBuffer> expansionBuffers = new LinkedList<>();
+    private final LinkedList<ByteBuffer> dechunkedBuffers = new LinkedList<>();
 
     private int remainingInChunk = 0;
 
@@ -107,27 +107,34 @@ public class BoltV1IncrementalDechunker
             @Override
             State handle( BoltV1IncrementalDechunker ctx ) throws IOException
             {
-                if( ctx.currentBuffer.position() < ctx.currentBuffer.capacity() )
+                if( ctx.currentBuffer.position() == ctx.currentBuffer.capacity() )
                 {
-                    ctx.currentBuffer.limit( Math.min(
-                            // Either the max we can fit in the buffer
-                            ctx.currentBuffer.capacity(),
+                    // We've run out of space in the current buffer :( Need to allocate a temporary expansion buffer for this message.
 
-                            // Or the max we have left to read for the current chunk
-                            ctx.currentBuffer.position() + ctx.remainingInChunk) );
-
-                    ctx.remainingInChunk -= ctx.read( ctx.currentBuffer );
-
-                    if( ctx.remainingInChunk == 0 )
-                    {
-                        return AWAITING_HEADER;
-                    }
-                    else
-                    {
-                        return IN_CHUNK;
-                    }
+                    // Note that we allocate an on-heap buffer here, rather than a direct buffer. Obviously a direct buffer is required to
+                    // read off the network, but the network stack in Java has a thread-local off-heap buffer that will kick in to act as a bridge.
+                    // Thus; these temporary buffers go on the heap, no off-heap memory is dynamically allocated.
+                    ctx.currentBuffer = ByteBuffer.allocate( ctx.expansionBufferSize );
+                    ctx.dechunkedBuffers.add( ctx.currentBuffer );
                 }
-                throw new UnsupportedOperationException();
+
+                ctx.currentBuffer.limit( Math.min(
+                        // Either the max we can fit in the buffer
+                        ctx.currentBuffer.capacity(),
+
+                        // Or the max we have left to read for the current chunk
+                        ctx.currentBuffer.position() + ctx.remainingInChunk) );
+
+                ctx.remainingInChunk -= ctx.read( ctx.currentBuffer );
+
+                if( ctx.remainingInChunk == 0 )
+                {
+                    return AWAITING_HEADER;
+                }
+                else
+                {
+                    return IN_CHUNK;
+                }
             }
         },
         CLOSED
@@ -142,13 +149,54 @@ public class BoltV1IncrementalDechunker
         abstract State handle( BoltV1IncrementalDechunker ctx ) throws IOException;
     }
 
+    /**
+     * @param onMessage called with a complete dechunked message available.
+     */
+    public BoltV1IncrementalDechunker( ThrowingConsumer<PackInput,IOException> onMessage )
+    {
+        this( onMessage, defaultMainBufferSize, defaultExpansionBufferSize );
+    }
+
+    /**
+     * @param onMessage called with a complete dechunked message available.
+     * @param mainBufferSize default buffer used for dechunking, this is allocated once and kept around permanently
+     * @param expansionBufferSize buffer size for "expansion" buffers, allocated when message does not fit in main buffer
+     */
+    public BoltV1IncrementalDechunker( ThrowingConsumer<PackInput,IOException> onMessage, int mainBufferSize, int expansionBufferSize )
+    {
+        this.onMessage = onMessage;
+        this.expansionBufferSize = expansionBufferSize;
+
+        this.mainBuffer = currentBuffer = ByteBuffer.allocateDirect( mainBufferSize );
+        this.dechunkedBuffers.add( mainBuffer );
+
+        this.bufferView = new DechunkedBufferView( dechunkedBuffers );
+    }
+
+    void handle( ReadableByteChannel ch ) throws IOException
+    {
+        currentChannelHasMore = true;
+        currentChannel = ch;
+        while( currentChannelHasMore )
+        {
+            state = state.handle( this );
+        }
+    }
+
     private void messageComplete() throws IOException
     {
-        messageBuffer.flip();
         onMessage.accept( bufferView );
-        messageBuffer.clear();
-        currentBuffer = messageBuffer;
-        // TODO clear expand buffers
+        mainBuffer.clear();
+        bufferView.reset();
+
+        if( dechunkedBuffers.size() > 0 )
+        {
+            dechunkedBuffers.clear();
+        }
+
+        // Main buffer is always present in the list of dechunked buffers
+        dechunkedBuffers.add( mainBuffer );
+        currentBuffer = mainBuffer;
     }
 
     private int read( ByteBuffer target ) throws IOException
@@ -160,111 +208,136 @@ public class BoltV1IncrementalDechunker
         }
         return read;
     }
-
-    /**
-     * @param onMessage called with a complete dechunked message available.
-     */
-    public BoltV1IncrementalDechunker( ThrowingConsumer<PackInput,IOException> onMessage )
-    {
-        this.onMessage = onMessage;
-        this.messageBuffer = currentBuffer = ByteBuffer.allocateDirect( mainBufferSize );
-        this.bufferView = new DechunkedBufferView( messageBuffer );
-    }
-
-    void handle( ReadableByteChannel ch ) throws IOException
-    {
-        currentChannelHasMore = true;
-        currentChannel = ch;
-        while( currentChannelHasMore )
-        {
-            state = this.state.handle( this );
-        }
-    }
 }
 
 class DechunkedBufferView implements PackInput
 {
-    private final ByteBuffer messageBuffer;
+    // Floating points are complicated. Whenever they have overflown into multiple buffers, we read them as binary data into this
+    // buffer, and then let the Stdlib decode them for us.
+    private final ByteBuffer doubleDeserializationBuffer = ByteBuffer.allocateDirect( 8 );
 
-    DechunkedBufferView( ByteBuffer messageBuffer )
+    private final LinkedList<ByteBuffer> buffers;
+    private ByteBuffer currentBuffer;
+
+    DechunkedBufferView( LinkedList<ByteBuffer> buffers )
     {
-        this.messageBuffer = messageBuffer;
+        this.buffers = buffers;
     }
 
     @Override
     public boolean hasMoreData() throws IOException
     {
-        return messageBuffer.hasRemaining();
+        return (currentBuffer != null && currentBuffer.hasRemaining()) || buffers.size() > 0;
     }
 
     @Override
     public byte readByte() throws IOException
     {
-        if( messageBuffer.hasRemaining() )
-        {
-            return messageBuffer.get();
-        }
-        throw new IOException( "Read past end of message, expected at least one more byte." );
+        ensureOne();
+        return currentBuffer.get();
     }
 
     @Override
     public short readShort() throws IOException
     {
-        if(messageBuffer.remaining() >= 2)
+        if( currentBufferHas( 2 ) )
         {
-            return messageBuffer.getShort();
+            return currentBuffer.getShort();
         }
-        throw new IOException( "Read past end of message, expected at least two more bytes." );
+        else
+        {
+            // Value is split across buffers, fall back to more expensive option
+            return (short) ((readByte()) << 8 | (readByte() & 0xFF));
+        }
     }
 
     @Override
     public int readInt() throws IOException
     {
-        if(messageBuffer.remaining() >= 4)
+        if( currentBufferHas( 4 ) )
         {
-            return messageBuffer.getInt();
+            return currentBuffer.getInt();
         }
-        throw new IOException( "Read past end of message, expected at least four more bytes." );
+        else
+        {
+            // Value is split across buffers, fall back to more expensive option
+            return (readShort()) << 16 | (readShort() & 0xFFFF);
+        }
     }
 
     @Override
     public long readLong() throws IOException
     {
-        if(messageBuffer.remaining() >= 8)
+        if( currentBufferHas( 8 ) )
         {
-            return messageBuffer.getLong();
+            return currentBuffer.getLong();
         }
-        throw new IOException( "Read past end of message, expected at least eight more bytes." );
+        else
+        {
+            // Value is split across buffers, fall back to more expensive option
+            return ((long)readInt()) << 32 | (readInt() & 0xFFFFFFFFl);
+        }
     }
 
     @Override
     public double readDouble() throws IOException
     {
-        if(messageBuffer.remaining() >= 8)
+        if( currentBufferHas( 8 ) )
         {
-            return messageBuffer.getDouble();
+            return currentBuffer.getDouble();
         }
-        throw new IOException( "Read past end of message, expected at least eight more bytes." );
+        else
+        {
+            doubleDeserializationBuffer.clear();
+            for ( int i = 0; i < 8; i++ )
+            {
+                doubleDeserializationBuffer.put( readByte() );
+            }
+            doubleDeserializationBuffer.flip();
+            return doubleDeserializationBuffer.getDouble();
+        }
     }
 
     @Override
-    public PackInput readBytes( byte[] into, int offset, int toRead ) throws IOException
+    public PackInput readBytes( byte[] into, int offset, int length ) throws IOException
     {
-        if(messageBuffer.remaining() >= toRead)
+        if(currentBufferHas(length))
         {
-            messageBuffer.get( into, offset, toRead );
+            currentBuffer.get( into, offset, length );
             return this;
         }
-        throw new IOException( "Read past end of message, expected at least "+toRead+" more bytes." );
+        else
+        {
+            int toRead = currentBuffer.remaining();
+            currentBuffer.get( into, offset, currentBuffer.remaining() );
+            return readBytes( into, offset + toRead, length - toRead );
+        }
     }
 
     @Override
     public byte peekByte() throws IOException
     {
-        if( messageBuffer.hasRemaining() )
+        ensureOne();
+        return currentBuffer.get(currentBuffer.position() + 1);
+    }
+
+    public void reset()
+    {
+        currentBuffer = null;
+    }
+
+    private boolean currentBufferHas( int remaining )
+    {
+        ensureOne();
+        return currentBuffer.remaining() >= remaining;
+    }
+
+    private void ensureOne()
+    {
+        if(currentBuffer == null || currentBuffer.remaining() == 0)
         {
-            return messageBuffer.get(messageBuffer.position() + 1);
+            currentBuffer = buffers.pop();
+            currentBuffer.flip();
         }
-        throw new IOException( "Read past end of message, expected at least one more byte." );
     }
 }
