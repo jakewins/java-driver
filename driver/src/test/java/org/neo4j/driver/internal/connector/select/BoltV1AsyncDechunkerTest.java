@@ -20,7 +20,7 @@ import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BoltV1IncrementalDechunkerTest
+public class BoltV1AsyncDechunkerTest
 {
     @Test
     public void shouldHandleDechunkingMessageCutAtAnySpot() throws Throwable
@@ -89,7 +89,7 @@ public class BoltV1IncrementalDechunkerTest
     public static <T> List<T> dechunking( byte[] chunked, final IOFunction<PackInput, T> reader, int mainBufferSize ) throws IOException
     {
         final List<T> readValues = new ArrayList<>();
-        BoltV1IncrementalDechunker dechunker = new BoltV1IncrementalDechunker(new ThrowingConsumer<PackInput,IOException>()
+        BoltV1AsyncDechunker dechunker = new BoltV1AsyncDechunker(new ThrowingConsumer<PackInput,IOException>()
         {
             @Override
             public void accept( PackInput packInput ) throws IOException
@@ -107,7 +107,7 @@ public class BoltV1IncrementalDechunkerTest
     private String dechunk( int mainBufferSize, int expandBufferSize, ReadableByteChannel ... parts ) throws IOException
     {
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        BoltV1IncrementalDechunker dechunker = new BoltV1IncrementalDechunker( new ThrowingConsumer<PackInput, IOException>()
+        BoltV1AsyncDechunker dechunker = new BoltV1AsyncDechunker( new ThrowingConsumer<PackInput, IOException>()
         {
             @Override
             public void accept( PackInput packInput ) throws IOException

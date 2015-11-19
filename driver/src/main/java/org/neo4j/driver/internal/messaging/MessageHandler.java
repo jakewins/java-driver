@@ -44,4 +44,64 @@ public interface MessageHandler
     void handleFailureMessage( String code, String message ) throws IOException;
 
     void handleIgnoredMessage() throws IOException;
+
+
+    class Adapter implements MessageHandler
+    {
+
+        @Override
+        public void handleInitMessage( String clientNameAndVersion ) throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleRunMessage( String statement, Map<String,Value> parameters ) throws IOException
+        {
+
+        }
+
+        @Override
+        public void handlePullAllMessage() throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleDiscardAllMessage() throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleAckFailureMessage() throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleSuccessMessage( Map<String,Value> meta ) throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleRecordMessage( Value[] fields ) throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleFailureMessage( String code, String message ) throws IOException
+        {
+
+        }
+
+        @Override
+        public void handleIgnoredMessage() throws IOException
+        {
+
+        }
+    }
+
 }

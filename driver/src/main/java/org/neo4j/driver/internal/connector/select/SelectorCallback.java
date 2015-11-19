@@ -1,5 +1,6 @@
 package org.neo4j.driver.internal.connector.select;
 
+import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 
 /**
@@ -9,16 +10,16 @@ import java.nio.channels.ReadableByteChannel;
  */
 public class SelectorCallback
 {
-    private final BoltV1IncrementalDechunker dechunker;
+    private final BoltV1AsyncDechunker dechunker;
 
-    public SelectorCallback( BoltV1IncrementalDechunker dechunker )
+    public SelectorCallback( BoltV1AsyncDechunker dechunker )
     {
         this.dechunker = dechunker;
     }
 
     /** At least one byte is available to read from the network */
-    public void onIncomingNetworkData( ReadableByteChannel ch )
+    public void onIncomingNetworkData( ReadableByteChannel ch ) throws IOException
     {
-
+        dechunker.handle( ch );
     }
 }

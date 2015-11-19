@@ -385,6 +385,12 @@ public class PackStreamMessageFormatV1 implements MessageFormat
             return unpacker.hasNext();
         }
 
+        public Reader reset( PackInput input )
+        {
+            this.unpacker.reset( input );
+            return this;
+        }
+
         /**
          * Parse a single message into the given consumer.
          */

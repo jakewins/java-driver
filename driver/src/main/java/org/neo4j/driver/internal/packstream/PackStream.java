@@ -430,8 +430,7 @@ public class PackStream
 
         public Unpacker( ReadableByteChannel channel )
         {
-            this( DEFAULT_BUFFER_CAPACITY );
-            reset( channel );
+            this.in = new BufferedChannelInput( DEFAULT_BUFFER_CAPACITY, channel );
         }
 
         public Unpacker( int bufferCapacity )
@@ -443,6 +442,12 @@ public class PackStream
         public Unpacker( PackInput in )
         {
             this.in = in;
+        }
+
+        public Unpacker reset( PackInput input )
+        {
+            this.in = input;
+            return this;
         }
 
         public Unpacker reset( ReadableByteChannel ch )

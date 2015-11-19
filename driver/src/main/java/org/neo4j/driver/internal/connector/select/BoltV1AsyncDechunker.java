@@ -17,14 +17,18 @@ import org.neo4j.driver.internal.util.ThrowingConsumer;
  *
  * This class is not thread safe, there's one of these per connection to the database.
  */
-public class BoltV1IncrementalDechunker
+public class BoltV1AsyncDechunker
 {
     public static final int defaultMainBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.mainSize", 1024 * 4 );
     private static final int defaultExpansionBufferSize = Integer.getInteger( "xx.neo4j.driver.deserialization_buffer.expandSize", 1024 * 2 );
 
+    /** Size used to allocate temporary space when the {@link #mainBuffer} cannot fit the whole message */
     private final int expansionBufferSize;
 
+    /** Once a complete message has been assembled, it is forwarded here */
     private final ThrowingConsumer<PackInput,IOException> onMessage;
+
+    /** Used to read the 2-byte chunk header */
     private final ByteBuffer header = ByteBuffer.allocateDirect( 2 );
 
     /** Exposes {@link #dechunkedBuffers} as a uniform {@link PackInput} */
@@ -48,6 +52,7 @@ public class BoltV1IncrementalDechunker
      */
     private final LinkedList<ByteBuffer> dechunkedBuffers = new LinkedList<>();
 
+    /** Number of bytes left to collect for the current chunk */
     private int remainingInChunk = 0;
 
     private State state = State.AWAITING_HEADER;
@@ -64,7 +69,7 @@ public class BoltV1IncrementalDechunker
         AWAITING_HEADER
         {
             @Override
-            State handle( BoltV1IncrementalDechunker ctx ) throws IOException
+            State handle( BoltV1AsyncDechunker ctx ) throws IOException
             {
                 ByteBuffer headerBuffer = ctx.header;
 
@@ -105,7 +110,7 @@ public class BoltV1IncrementalDechunker
         IN_CHUNK
         {
             @Override
-            State handle( BoltV1IncrementalDechunker ctx ) throws IOException
+            State handle( BoltV1AsyncDechunker ctx ) throws IOException
             {
                 if( ctx.currentBuffer.position() == ctx.currentBuffer.capacity() )
                 {
@@ -140,19 +145,19 @@ public class BoltV1IncrementalDechunker
         CLOSED
         {
             @Override
-            State handle( BoltV1IncrementalDechunker ctx )
+            State handle( BoltV1AsyncDechunker ctx )
             {
                 return CLOSED;
             }
         };
 
-        abstract State handle( BoltV1IncrementalDechunker ctx ) throws IOException;
+        abstract State handle( BoltV1AsyncDechunker ctx ) throws IOException;
     }
 
     /**
      * @param onMessage called with a complete dechunked message available.
      */
-    public BoltV1IncrementalDechunker( ThrowingConsumer<PackInput,IOException> onMessage )
+    public BoltV1AsyncDechunker( ThrowingConsumer<PackInput,IOException> onMessage )
     {
         this( onMessage, defaultMainBufferSize, defaultExpansionBufferSize );
     }
@@ -162,7 +167,7 @@ public class BoltV1IncrementalDechunker
      * @param mainBufferSize default buffer used for dechunking, this is allocated once and kept around permanently
      * @param expansionBufferSize buffer size for "expansion" buffers, allocated when message does not fit in main buffer
      */
-    public BoltV1IncrementalDechunker( ThrowingConsumer<PackInput,IOException> onMessage, int mainBufferSize, int expansionBufferSize )
+    public BoltV1AsyncDechunker( ThrowingConsumer<PackInput,IOException> onMessage, int mainBufferSize, int expansionBufferSize )
     {
         this.onMessage = onMessage;
         this.expansionBufferSize = expansionBufferSize;
@@ -173,6 +178,7 @@ public class BoltV1IncrementalDechunker
         this.bufferView = new DechunkedBufferView( dechunkedBuffers );
     }
 
+    /** Main input method - whenever new data becomes available, it is published here for dechunking. */
     void handle( ReadableByteChannel ch ) throws IOException
     {
         currentChannelHasMore = true;
@@ -183,9 +189,12 @@ public class BoltV1IncrementalDechunker
         }
     }
 
+    /** The current message we are collecting is complete. Expose it as a {@link org.neo4j.driver.internal.packstream.PackInput} to downstream subscriber */
     private void messageComplete() throws IOException
     {
         onMessage.accept( bufferView );
+
+        // And then reset, prepping to collect the next message.
         mainBuffer.clear();
         bufferView.reset();
 
@@ -210,6 +219,10 @@ public class BoltV1IncrementalDechunker
     }
 }
 
+/**
+ * This class exposes a list of buffers as a single consecutive message. Mainly this means it deals with reading multi-byte values when they are split
+ * across two separate buffers.
+ */
 class DechunkedBufferView implements PackInput
 {
     // Floating points are complicated. Whenever they have overflown into multiple buffers, we read them as binary data into this

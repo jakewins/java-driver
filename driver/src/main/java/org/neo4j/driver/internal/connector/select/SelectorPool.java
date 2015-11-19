@@ -98,6 +98,7 @@ public class SelectorPool implements AutoCloseable
                         while(keys.hasNext())
                         {
                             SelectionKey key = keys.next();
+                            System.out.println("Recieved: " + key);
 
                             if( key.isReadable() )
                             {
@@ -110,9 +111,9 @@ public class SelectorPool implements AutoCloseable
                     }
                 }
             }
-            catch ( IOException e )
+            catch( Throwable e )
             {
-                logger.error( "An IO error occurred when reading from the network, the driver will not be able to continue until the network " +
+                logger.error( "An error occurred when processing a network event. The driver will not be able to continue until the network " +
                               "error is resolved. The error message was: " + e.getMessage(), e );
             }
         }

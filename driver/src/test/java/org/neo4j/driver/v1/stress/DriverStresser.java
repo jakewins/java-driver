@@ -38,7 +38,6 @@ import static org.neo4j.driver.v1.Values.parameters;
 
 public class DriverStresser
 {
-
     private static Neo4jRunner server;
     private static Driver driver;
 
@@ -46,12 +45,12 @@ public class DriverStresser
     {
         int iterations = 100_000;
 
-        bench( iterations, 1, 10_000 );
+//        bench( iterations, 1, 10_000 );
         bench( (long) iterations / 2, 2, 10_000 );
-        bench( (long) iterations / 4, 4, 10_000 );
-        bench( (long) iterations / 8, 8, 10_000 );
-        bench( (long) iterations / 16, 16, 10_000 );
-        bench( (long) iterations / 32, 32, 10_000 );
+//        bench( (long) iterations / 4, 4, 10_000 );
+//        bench( (long) iterations / 8, 8, 10_000 );
+//        bench( (long) iterations / 16, 16, 10_000 );
+//        bench( (long) iterations / 32, 32, 10_000 );
     }
 
     public static void setup() throws Exception
