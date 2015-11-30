@@ -58,7 +58,7 @@ public class ResultBuilder implements StreamCollector
     }
 
     @Override
-    public void keys( String[] names )
+    public void head( String[] names )
     {
         if ( keys == null )
         {
@@ -92,6 +92,12 @@ public class ResultBuilder implements StreamCollector
     public void record( Value[] values )
     {
         body.add( new InternalRecord( keys, keyIndexLookup, values ) );
+    }
+
+    @Override
+    public void tail()
+    {
+
     }
 
     @Override

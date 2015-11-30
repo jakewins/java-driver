@@ -6,6 +6,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.LinkedList;
 
 import org.neo4j.driver.internal.packstream.PackInput;
+import org.neo4j.driver.internal.util.BytePrinter;
 import org.neo4j.driver.internal.util.ThrowingConsumer;
 
 /**
@@ -331,7 +332,7 @@ class DechunkedBufferView implements PackInput
     public byte peekByte() throws IOException
     {
         ensureOne();
-        return currentBuffer.get(currentBuffer.position() + 1);
+        return currentBuffer.get(currentBuffer.position());
     }
 
     public void reset()
@@ -352,5 +353,16 @@ class DechunkedBufferView implements PackInput
             currentBuffer = buffers.pop();
             currentBuffer.flip();
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        for ( ByteBuffer buffer : buffers )
+        {
+            sb.append( BytePrinter.hex( buffer, 0, buffer.position() ) );
+        }
+        return sb.toString();
     }
 }

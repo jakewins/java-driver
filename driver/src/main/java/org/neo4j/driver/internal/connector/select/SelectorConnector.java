@@ -15,7 +15,7 @@ import org.neo4j.driver.internal.spi.Logger;
 
 import static java.util.Collections.singletonList;
 
-public class SelectorConnector implements Connector
+public class SelectorConnector implements Connector, AutoCloseable
 {
     // TODO: This should be per-driver-instance, and the size of it should be configurable!
     private final ConcurrentHashMap<URI, SelectorPool> selectors = new ConcurrentHashMap<>();
@@ -29,6 +29,15 @@ public class SelectorConnector implements Connector
         SelectorConnection conn = new SelectorConnection( selector,  sessionURI.getHost(), port );
         conn.init( "bolt-java-driver/" + Version.driverVersion() );
         return conn;
+    }
+
+    @Override
+    public void close() throws Exception
+    {
+        for ( SelectorPool selectorPool : selectors.values() )
+        {
+            selectorPool.close();
+        }
     }
 
     private Selector selectorFor( URI sessionURI, Logger log )

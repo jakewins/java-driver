@@ -36,7 +36,7 @@ public class SelectorConnectionIT
         connection.sync();
 
         // Then
-        assertThat( result.next()[0], equalTo( Values.value( 1 ) ));
+        assertThat( result.next().get( 0 ), equalTo( Values.value( 1 ) ));
         assertThat( result.next(), is( nullValue() ) );
     }
 

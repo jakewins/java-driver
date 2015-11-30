@@ -18,19 +18,19 @@
  */
 package org.neo4j.driver.internal.summary;
 
-import java.util.List;
-
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.List;
+
 import org.neo4j.driver.internal.ParameterSupport;
 import org.neo4j.driver.v1.Record;
 import org.neo4j.driver.v1.Value;
+import org.neo4j.driver.v1.exceptions.ClientException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
-
 import static org.neo4j.driver.v1.Values.value;
 
 public class ResultCursorBuilderTest
@@ -43,7 +43,7 @@ public class ResultCursorBuilderTest
     {
         // Given
         ResultBuilder builder = createResultBuilder();
-        builder.keys( new String[]{"a"} );
+        builder.head( new String[]{"a"} );
         builder.record( new Value[]{value( "Admin" )} );
 
         // When
@@ -67,6 +67,23 @@ public class ResultCursorBuilderTest
 
         // Then
         assertThat( result.size(), equalTo( 0 ) );
+    }
+
+    @Test
+    public void shouldThrowNoSuchSomething()
+    {
+        // Given
+        ResultBuilder builder = createResultBuilder();
+        builder.head( new String[]{"a"} );
+        builder.record( new Value[]{value( "Admin" )} );
+
+        List<Record> result = builder.build().retain();
+
+        // Expect
+        exception.expect( ClientException.class );
+
+        // When
+        result.get( 2 );
     }
 
     private ResultBuilder createResultBuilder()

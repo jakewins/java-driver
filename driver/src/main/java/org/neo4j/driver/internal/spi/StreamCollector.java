@@ -29,31 +29,63 @@ import org.neo4j.driver.v1.Value;
 
 public interface StreamCollector
 {
-    StreamCollector NO_OP = new StreamCollector()
+    void head( String[] names );
+
+    void record( Value[] fields );
+
+    // End of stream
+    void tail();
+
+    // TODO: These should go into tail
+    void statementType( StatementType type);
+
+    void statementStatistics( UpdateStatistics statistics );
+
+    void plan( Plan plan );
+
+    void profile( ProfiledPlan plan );
+
+    void notifications( List<Notification> notifications );
+
+    StreamCollector NO_OP = new Adapter();
+
+    class Adapter implements StreamCollector
     {
+
         @Override
-        public void keys( String[] names )
+        public void head( String[] names )
         {
+
         }
 
         @Override
         public void record( Value[] fields )
         {
+
+        }
+
+        @Override
+        public void tail()
+        {
+
         }
 
         @Override
         public void statementType( StatementType type )
         {
+
         }
 
         @Override
         public void statementStatistics( UpdateStatistics statistics )
         {
+
         }
 
         @Override
         public void plan( Plan plan )
         {
+
         }
 
         @Override
@@ -67,22 +99,6 @@ public interface StreamCollector
         {
 
         }
-    };
-
-    // TODO: This should be modified to simply have head/record/tail methods
-
-    void keys( String[] names );
-
-    void record( Value[] fields );
-
-    void statementType( StatementType type);
-
-    void statementStatistics( UpdateStatistics statistics );
-
-    void plan( Plan plan );
-
-    void profile( ProfiledPlan plan );
-
-    void notifications( List<Notification> notifications );
+    }
 }
 

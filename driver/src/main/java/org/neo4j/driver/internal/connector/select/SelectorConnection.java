@@ -135,7 +135,7 @@ public class SelectorConnection implements Connection
     {
         try
         {
-            output.handleDiscardAllMessage();
+            output.handlePullAllMessage();
         }
         catch ( IOException e )
         {

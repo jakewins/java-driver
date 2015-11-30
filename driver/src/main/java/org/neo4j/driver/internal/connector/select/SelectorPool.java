@@ -38,7 +38,9 @@ public class SelectorPool implements AutoCloseable
                 @Override
                 public Thread newThread( Runnable r )
                 {
-                    return new Thread( r, THREAD_BASE_NAME + threadIdGen.incrementAndGet() );
+                    Thread thread = new Thread( r, THREAD_BASE_NAME + threadIdGen.incrementAndGet() );
+                    thread.setDaemon( true );
+                    return thread;
                 }
             } );
 
@@ -89,7 +91,7 @@ public class SelectorPool implements AutoCloseable
                 {
                     // Select loop - we block here for up to 100ms waiting for a network event
                     // The reason we don't block indefinitely is to check the `running` flag
-                    int numKeys = selector.select( 100 );
+                    int numKeys = selector.select( 10 );
                     if ( numKeys > 0 )
                     {
                         // If there were network events, forward each one to the SelectorCallback registered for the channel the event occurred on
@@ -98,8 +100,6 @@ public class SelectorPool implements AutoCloseable
                         while(keys.hasNext())
                         {
                             SelectionKey key = keys.next();
-                            System.out.println("Recieved: " + key);
-
                             if( key.isReadable() )
                             {
                                 SelectorCallback cb = (SelectorCallback) key.attachment();

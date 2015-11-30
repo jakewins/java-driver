@@ -1,12 +1,15 @@
 package org.neo4j.driver.internal.connector.select;
 
 import java.io.IOException;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedTransferQueue;
 
 import org.neo4j.driver.Value;
 import org.neo4j.driver.internal.messaging.MessageHandler;
 import org.neo4j.driver.internal.spi.StreamCollector;
+
+import static org.neo4j.driver.Values.valueToString;
 
 /**
  * Handles routing Bolt V1 streams to registered listeners.
@@ -14,11 +17,12 @@ import org.neo4j.driver.internal.spi.StreamCollector;
 public class BoltV1MessageRouter extends MessageHandler.Adapter
 {
     // TODO this is not thread safe, and this field will be accessed by both the app thread and the IO thread
-    private final LinkedList<StreamCollector> queuedObservers = new LinkedList<>();
+    private final LinkedTransferQueue<StreamCollector> queuedObservers = new LinkedTransferQueue<>();
     private StreamCollector currentObserver;
 
     enum State
     {
+        /** Before the session can be used, we send an initialization message, the reply from that is handled here. */
         INIT
         {
             @Override
@@ -28,22 +32,24 @@ public class BoltV1MessageRouter extends MessageHandler.Adapter
                 return IDLE;
             }
         },
+
+        /** This state means there is not currently a stream open. When we recieve a `SUCCESS` message here, it will always be the beginning of a stream */
         IDLE
         {
             @Override
             State success( BoltV1MessageRouter ctx, Map<String,Value> meta )
             {
                 // Success message when idle means new stream!
-                ctx.currentObserver = ctx.queuedObservers.pop();
+                ctx.currentObserver = ctx.queuedObservers.poll();
 
                 // Read HEAD metadata
-                System.out.println(meta);
-//                Value fields = meta.get( "fields" );
-//                List<String> fields = fields.javaList( valueToString() );
-//                ctx.currentObserver.fieldNames( fields.toArray(new String[fields.size()]) );
+                List<String> fields = meta.get( "fields" ).javaList( valueToString() );
+                ctx.currentObserver.head( fields.toArray( new String[fields.size()] ) );
                 return IN_STREAM;
             }
         },
+
+        /** This state means we are currently processing records in a stream. */
         IN_STREAM
         {
             @Override
@@ -56,6 +62,7 @@ public class BoltV1MessageRouter extends MessageHandler.Adapter
             @Override
             State success( BoltV1MessageRouter ctx, Map<String,Value> meta )
             {
+                ctx.currentObserver.tail();
                 return IDLE;
             }
         };
@@ -83,7 +90,7 @@ public class BoltV1MessageRouter extends MessageHandler.Adapter
         }
     }
 
-    private State state = State.IDLE;
+    private State state = State.INIT;
 
     /** Queue up a stream observer, once all prior observers have seen their streams, this observer will see the stream that comes next */
     public void register( StreamCollector collector )

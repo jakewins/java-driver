@@ -140,7 +140,7 @@ public class SocketResponseHandler implements MessageHandler
                 {
                     fields[idx++] = value.asString();
                 }
-                collector.keys( fields );
+                collector.head( fields );
             }
         }
     }

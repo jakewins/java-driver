@@ -48,13 +48,19 @@ public class SummaryBuilder implements StreamCollector
     }
 
     @Override
-    public void keys( String[] names )
+    public void head( String[] names )
     {
         // intentionally empty
     }
 
     @Override
     public void record( Value[] fields )
+    {
+        // intentionally empty
+    }
+
+    @Override
+    public void tail()
     {
         // intentionally empty
     }
