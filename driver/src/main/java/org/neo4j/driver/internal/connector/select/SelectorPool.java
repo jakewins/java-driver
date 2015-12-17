@@ -11,8 +11,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.neo4j.driver.exceptions.ClientException;
 import org.neo4j.driver.internal.spi.Logger;
+import org.neo4j.driver.v1.exceptions.ClientException;
 
 /**
  * The Selector-based connector uses a configurable number of background threads to handle incoming network packets.
@@ -89,7 +89,7 @@ public class SelectorPool implements AutoCloseable
             {
                 while(running)
                 {
-                    // Select loop - we block here for up to 100ms waiting for a network event
+                    // Select loop - we block here for up to some timeout waiting for a network event
                     // The reason we don't block indefinitely is to check the `running` flag
                     int numKeys = selector.select( 10 );
                     if ( numKeys > 0 )

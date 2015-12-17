@@ -5,11 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedTransferQueue;
 
-import org.neo4j.driver.Value;
 import org.neo4j.driver.internal.messaging.MessageHandler;
 import org.neo4j.driver.internal.spi.StreamCollector;
+import org.neo4j.driver.v1.Value;
 
-import static org.neo4j.driver.Values.valueToString;
+import static org.neo4j.driver.v1.Values.valueToString;
 
 /**
  * Handles routing Bolt V1 streams to registered listeners.
@@ -43,7 +43,7 @@ public class BoltV1MessageRouter extends MessageHandler.Adapter
                 ctx.currentObserver = ctx.queuedObservers.poll();
 
                 // Read HEAD metadata
-                List<String> fields = meta.get( "fields" ).javaList( valueToString() );
+                List<String> fields = meta.get( "fields" ).asList( valueToString() );
                 ctx.currentObserver.head( fields.toArray( new String[fields.size()] ) );
                 return IN_STREAM;
             }

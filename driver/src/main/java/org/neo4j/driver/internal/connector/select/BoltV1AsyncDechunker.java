@@ -13,6 +13,12 @@ import org.neo4j.driver.internal.util.ThrowingConsumer;
  * Bolt V1 dechunking implementation that handles chunks split into arbitrary network packets. As data becomes available, the dechunker will forward
  * complete messages for deserialization.
  *
+ * This class works by reconstructing the original unfragmented and dechunked message in a "main" buffer. That buffer is large and static, kept around
+ * permanently for each connection. However, if this buffer is too small to fit the full message, we allocate "expansion buffers", which are short-lived
+ * buffers used to fit the rest of the message.
+ *
+ * The main buffer lives off-heap, while short-lived expansion buffers live on the heap.
+ *
  * In a later release, we'd ideally do direct incremental deserialization, rather than build up the whole serialized message in RAM - and in a later version
  * of Bolt, we'd ideally avoid the deserialization altogether, evolving PackStream to work more like FlatBuffers, SBE and similar.
  *

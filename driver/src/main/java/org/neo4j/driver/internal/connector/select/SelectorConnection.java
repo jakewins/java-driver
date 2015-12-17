@@ -9,14 +9,14 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Map;
 
-import org.neo4j.driver.Value;
-import org.neo4j.driver.exceptions.ClientException;
 import org.neo4j.driver.internal.connector.socket.ChunkedOutput;
 import org.neo4j.driver.internal.messaging.PackStreamMessageFormatV1;
 import org.neo4j.driver.internal.packstream.PackInput;
 import org.neo4j.driver.internal.spi.Connection;
 import org.neo4j.driver.internal.spi.StreamCollector;
 import org.neo4j.driver.internal.util.ThrowingConsumer;
+import org.neo4j.driver.v1.Value;
+import org.neo4j.driver.v1.exceptions.ClientException;
 
 public class SelectorConnection implements Connection
 {

@@ -6,16 +6,18 @@ import java.util.Map;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TransferQueue;
 
-import org.neo4j.driver.Notification;
-import org.neo4j.driver.Plan;
-import org.neo4j.driver.ProfiledPlan;
-import org.neo4j.driver.Record;
-import org.neo4j.driver.StatementType;
-import org.neo4j.driver.UpdateStatistics;
-import org.neo4j.driver.Value;
-import org.neo4j.driver.exceptions.ClientException;
-import org.neo4j.driver.internal.SimpleRecord;
+import org.neo4j.driver.internal.InternalRecord;
 import org.neo4j.driver.internal.spi.StreamCollector;
+import org.neo4j.driver.v1.Notification;
+import org.neo4j.driver.v1.Plan;
+import org.neo4j.driver.v1.ProfiledPlan;
+import org.neo4j.driver.v1.Record;
+import org.neo4j.driver.v1.StatementType;
+import org.neo4j.driver.v1.UpdateStatistics;
+import org.neo4j.driver.v1.Value;
+import org.neo4j.driver.v1.exceptions.ClientException;
+
+import static java.util.Arrays.asList;
 
 public class BoltV1AsyncResultCollector implements StreamCollector
 {
@@ -24,6 +26,7 @@ public class BoltV1AsyncResultCollector implements StreamCollector
     private final TransferQueue<Value[]> recievedRecords = new LinkedTransferQueue<>();
 
     private Map<String, Integer> fieldLookup;
+    private List<String> fieldOrder;
     private boolean eof = false;
 
     /** Read the next value, or block until it arrives */
@@ -40,7 +43,7 @@ public class BoltV1AsyncResultCollector implements StreamCollector
             Value[] record = recievedRecords.take();
             if( record != EOF )
             {
-                return new SimpleRecord( fieldLookup, record );
+                return new InternalRecord( fieldOrder, fieldLookup, record );
             }
             else
             {
@@ -91,6 +94,7 @@ public class BoltV1AsyncResultCollector implements StreamCollector
     @Override
     public void head( String[] names )
     {
+        fieldOrder = asList(names);
         fieldLookup = new HashMap<>();
         for ( int i = 0; i < names.length; i++ )
         {
